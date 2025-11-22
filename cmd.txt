@@ -1,0 +1,38 @@
+conda activate lerobot
+
+cd ~/zhoukr/piper_sdk/piper_sdk
+bash find_all_can_port.sh
+bash can_activate.sh can_master 1000000 "3-7.1:1.0"
+bash can_activate.sh can_follower 1000000 "3-7.2:1.0"
+
+cd /home/fourier/zhoukr/project/piper_lerobot
+
+#遥操作
+lerobot-teleoperate \
+    --robot.type=piper_follower \
+    --robot.id=my_follower_arm \
+    --teleop.type=piper_leader \
+    --teleop.id=my_leader_arm \
+    --display_data=true
+
+-----------------------------------------------------------------------------
+
+lerobot-record \
+  --robot.type=piper_follower \
+  --robot.cameras='{wrist: {"type": "opencv", "index_or_path": "/dev/video4", "width": 640, "height": 480, "fps": 30, "color_mode": "rgb"}}' \
+  --teleop.type=piper_leader \
+  --display_data=true \
+  --dataset.repo_id=jokeru/record-test \
+  --dataset.push_to_hub=false \
+  --dataset.num_episodes=5 \
+  --dataset.single_task="test"
+
+#全部失能
+python /home/fourier/zhoukr/project/piper_lerobot/utils/teleop_disable.py
+
+
+pip install -e .
+
+rm -r /home/fourier/.cache/huggingface/lerobot/jokeru/record-test
+
+

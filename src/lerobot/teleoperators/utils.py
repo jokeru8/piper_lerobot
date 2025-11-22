@@ -37,6 +37,12 @@ def make_teleoperator_from_config(config: TeleoperatorConfig) -> Teleoperator:
         from .keyboard import KeyboardTeleop
 
         return KeyboardTeleop(config)
+        
+    elif config.type == "piper_leader":
+        from .piper_leader import PIPERLeader
+
+        return PIPERLeader(config)
+
     elif config.type == "koch_leader":
         from .koch_leader import KochLeader
 
