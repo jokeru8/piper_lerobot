@@ -1,5 +1,5 @@
 
-#环境创建
+# 环境创建
 
 ````
 conda create -y -n lerobot python=3.10
@@ -10,7 +10,7 @@ cd piper_lerobot
 pip install -e .
 ````
 
-#连接机械臂
+# 连接机械臂
 
 ````
 bash find_all_can_port.sh
@@ -19,7 +19,7 @@ bash can_activate.sh can_master 1000000 "3-7.1:1.0"
 bash can_activate.sh can_follower 1000000 "3-7.2:1.0"
 ````
 
-#遥操作
+# 遥操作
 
 ````
 lerobot-teleoperate \
@@ -30,7 +30,7 @@ lerobot-teleoperate \
     --display_data=true
 ````
 
-#采集数据集
+# 采集数据集
 
 /dev/video4等参数改为自己对应的端口
 
