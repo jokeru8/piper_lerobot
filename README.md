@@ -40,7 +40,7 @@ lerobot-teleoperate \
 
 # 采集数据集
 
-/dev/video4等参数改为自己对应的端口
+/dev/video0等参数改为自己对应的端口
 
 ````
 lerobot-record \
@@ -56,6 +56,23 @@ lerobot-record \
   --dataset.num_episodes=5 \
   --dataset.single_task="test"
   ````
+
+huggingface文档:huggingface.co/docs/lerobot/lerobot-dataset-v3
+
+使用命令行参数设置数据记录的流程:
+````
+    --dataset.episode_time_s=60 每个数据记录episode的持续时间(默认值:60秒)。
+    --dataset.reset_time_s=60 每episode之后重置环境的时长(60 seconds默认值:60秒)。
+    --dataset.num_episodes=50 记录的总集数(50默认数:50)。
+````
+
+录制过程中的键盘控制
+
+使用键盘快捷键控制数据记录流程:
+
+    按右箭头(→):提前停止当前事件,或重置时间,然后切换到下一个。
+    按左箭头(→):取消当前事件并重新录制。
+    按ESC:立即停止会话,编码视频并上传数据集。
 
 # 全部失能
 
