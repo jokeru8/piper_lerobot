@@ -19,8 +19,8 @@ pip install -e .
 
 ````
 sudo apt install guvcview    #安装Guvcview
-guvcview --device=/dev/video0  # 测试wrist相机
-guvcview --device=/dev/video6  # 测试ground相机
+guvcview --device=/dev/video6  # 测试wrist相机
+guvcview --device=/dev/video0  # 测试ground相机
 ````
 
 ## 3.连接机械臂
@@ -111,3 +111,66 @@ python src/lerobot/scripts/lerobot_dataset_viz.py \
 ````
 python utils/teleop_disable.py
 ````
+
+## ACT
+### 训练ACT
+````
+lerobot-train \
+  --dataset.repo_id=jokeru/record1 \
+  --policy.type=act \
+  --output_dir=outputs/train/act_your_dataset \
+  --job_name=act_tape \
+  --policy.device=cuda \
+  --wandb.enable=false \
+  --policy.repo_id=jokeru/act_policy
+````
+
+### 测试ACT
+
+#### 数据集上测试
+````
+lerobot-record \
+  --robot.type=piper_follower \
+  --robot.cameras='{
+    "wrist": {
+      "type": "opencv",
+      "index_or_path": "/dev/video0",
+      "width": 640,
+      "height": 480,
+      "fps": 30,
+      "rotation": 0,
+    },
+    "ground": {
+      "type": "opencv",
+      "index_or_path": "/dev/video6",
+      "width": 640,
+      "height": 480,
+      "fps": 30,
+      "rotation": 0,
+    }
+  }' \
+  --display_data=true \
+  --dataset.repo_id=jokeru/eval_act_your_dataset \
+  --dataset.num_episodes=10 \
+  --dataset.single_task="Pick up round yellow tape and place it into the brown box." \
+  --policy.path=jokeru/act_policy
+````
+
+````
+lerobot-eval \
+    --policy.path=jokeru/act_policy \
+    --env.type=pusht \
+    --eval.batch_size=10 \
+    --eval.n_episodes=10 \
+    --policy.use_amp=false \
+    --policy.device=cuda
+````
+
+#### 真机测试
+[huggingface真实世界机器人文档](https://huggingface.co/docs/lerobot/il_robots)
+
+````
+lerobot-deploy --config_path=deploy_act.yaml
+````
+
+## Async 远程推理
