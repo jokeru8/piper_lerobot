@@ -1,6 +1,6 @@
 # piper_lerobot数据集v3格式
 
-[huggingface文档](huggingface.co/docs/lerobot)
+[huggingface文档](http://huggingface.co/docs/lerobot)
 
 ## 环境创建
 
