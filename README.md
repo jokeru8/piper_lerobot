@@ -2,7 +2,7 @@
 
 [huggingface文档](http://huggingface.co/docs/lerobot)
 
-## 环境创建
+## 1.环境创建
 
 ````
 conda create -y -n lerobot_v21 python=3.10
@@ -13,7 +13,7 @@ cd piper_lerobot_v21
 pip install -e .
 ````
 
-## 测试相机
+## 2.测试相机
 
 两个相机不能从同一个扩展坞连接电脑
 
@@ -23,7 +23,7 @@ guvcview --device=/dev/video0  # 测试wrist相机
 guvcview --device=/dev/video6  # 测试ground相机
 ````
 
-## 连接机械臂
+## 3.连接机械臂
 
 "3-7.1:1.0"根据输出的can端口号改为自己的
 
@@ -34,7 +34,7 @@ bash can_activate.sh can_master 1000000 "3-7.1:1.0"
 bash can_activate.sh can_follower 1000000 "3-7.2:1.0"
 ````
 
-## 遥操作
+## 4.遥操作
 
 ````
 lerobot-teleoperate \
@@ -46,7 +46,7 @@ lerobot-teleoperate \
 ````
 
 
-## 采集数据集
+## 5.采集数据集
 
 /dev/video0等参数改为自己对应的端口
 
@@ -79,7 +79,7 @@ lerobot-record \
   --dataset.single_task="test"
 ````
 
-### 其他可选参数:
+### 5.1其他可选参数:
 ````
   --dataset.episode_time_s=60 每个数据记录episode的持续时间(默认60秒)，可提前结束。
   --dataset.reset_time_s=60 每episode之后重置环境的时长(默认60秒)。
@@ -90,7 +90,7 @@ lerobot-record \
 
 录制过程中使用键盘控制
 
-### 使用键盘快捷键控制数据采集
+### 5.2使用键盘快捷键控制数据采集
 
 按右箭头(→):提前停止当前事件,或重置时间,然后切换到下一个。
 
@@ -98,7 +98,7 @@ lerobot-record \
 
 按ESC:立即停止会话,编码视频并上传数据集。
 
-## 可视化数据集
+## 6.可视化数据集
 
 ````
 python src/lerobot/scripts/lerobot_dataset_viz.py \
@@ -106,7 +106,7 @@ python src/lerobot/scripts/lerobot_dataset_viz.py \
     --episode-index 0
 ````
 
-## 全部失能
+## 7.全部失能
 
 ````
 python utils/teleop_disable.py
