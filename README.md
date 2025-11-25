@@ -8,6 +8,7 @@
 conda create -y -n lerobot python=3.10
 conda activate lerobot
 conda install -c conda-forge ffmpeg=7.1.1 -y
+pip install transformers --upgrade
 git clone https://github.com/jokeru8/piper_lerobot.git
 cd piper_lerobot
 pip install -e .
