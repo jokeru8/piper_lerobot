@@ -102,6 +102,12 @@ huggingface文档:huggingface.co/docs/lerobot/lerobot-dataset-v3
     按左箭头(→):取消当前事件并重新录制。
     按ESC:立即停止会话,编码视频并上传数据集。
 
+# 可视化数据集
+
+python src/lerobot/scripts/lerobot_dataset_viz.py \
+    --repo-id jokeru/record1 \
+    --episode-index 0
+
 # 全部失能
 
 ````
