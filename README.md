@@ -146,15 +146,20 @@ python utils/teleop_disable.py
 
 ## 9.ACT
 ### 训练ACT
+
+num_workers、batch_size、steps 等训练参数参照自己的设备
 ````
 lerobot-train \
-  --dataset.repo_id=jokeru/record1 \
+  --dataset.repo_id=jokeru/record2 \
   --policy.type=act \
-  --output_dir=outputs/train/record1 \
-  --job_name=act_finetune \
+  --output_dir=outputs/train/record2 \
+  --job_name=act_finetune_pick_apple \
   --policy.device=cuda \
   --wandb.enable=false \
-  --policy.repo_id=jokeru/act
+  --policy.repo_id=jokeru/act_pick_apple \
+  --batch_size=128 \
+  --steps=1_000 \
+  --num_workers=128
 ````
 
 ### 测试ACT
@@ -172,7 +177,7 @@ lerobot-eval \
 ````
 
 #### 真机测试
-[huggingface真实世界机器人文档](https://huggingface.co/docs/lerobot/il_robots)
+[lerobot huggingface真机文档](https://huggingface.co/docs/lerobot/il_robots)
 
 ````
 lerobot-record \
@@ -196,10 +201,9 @@ lerobot-record \
     }
   }' \
   --display_data=true \
-  --dataset.repo_id=jokeru/eval_act \
-  --dataset.num_episodes=3 \
-  --dataset.single_task="Pick up round yellow tape and place it into the brown box." \
-  --policy.path=jokeru/act
-  --policy.path=/home/.cache/huggingface/hub/models--jokeru--act/snapshots/72f994e94a71254011f88081d7df13f5a78acb4e
+  --dataset.repo_id=jokeru/eval_act_pick_apple \
+  --dataset.num_episodes=1 \
+  --dataset.single_task="Pick up the apple and put it into the basket." \
+  --policy.path=jokeru/act_pick_apple
 ````
 
