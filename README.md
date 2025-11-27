@@ -278,17 +278,43 @@ python src/lerobot/scripts/server/policy_server.py \
 ### 客户端接入
 ````
 python src/lerobot/scripts/server/robot_client.py \
-    --server_address=127.0.0.1:8080 \ # SERVER: the host address and port of the policy server
-    --robot.type=so100_follower \ # ROBOT: your robot type
-    --robot.port=/dev/tty.usbmodem585A0076841 \ # ROBOT: your robot port
-    --robot.id=follower_so100 \ # ROBOT: your robot id, to load calibration file
-    --robot.cameras="{ laptop: {type: opencv, index_or_path: 0, width: 1920, height: 1080, fps: 30}, phone: {type: opencv, index_or_path: 0, width: 1920, height: 1080, fps: 30}}" \ # POLICY: the cameras used to acquire frames, with keys matching the keys expected by the policy
-    --task="dummy" \ # POLICY: The task to run the policy on (`Fold my t-shirt`). Not necessarily defined for all policies, such as `act`
-    --policy_type=your_policy_type \ # POLICY: the type of policy to run (smolvla, act, etc)
-    --pretrained_name_or_path=user/model \ # POLICY: the model name/path on server to the checkpoint to run (e.g., lerobot/smolvla_base)
+    --server_address=127.0.0.1:8080 \ # 远程服务器 地址:端口
+    --robot.type=so100_follower \ 
+    --robot.cameras='{
+    "wrist": {
+      "type": "opencv",
+      "index_or_path": "/dev/video6",
+      "width": 480,
+      "height": 640,
+      "fps": 30,
+      "rotation": 90,
+    },
+    "ground": {
+      "type": "opencv",
+      "index_or_path": "/dev/video4",
+      "width": 640,
+      "height": 480,
+      "fps": 30,
+      "rotation": 0,
+    }
+  }' \
+    --task="Pick up the apple and put it into the basket." \ 
+    --policy_type=pi05 \ 
+    --pretrained_name_or_path=jokeru/pi05 \ # POLICY: the model name/path on server to the checkpoint to run (e.g., lerobot/smolvla_base)
     --policy_device=mps \ # POLICY: the device to run the policy on, on the server
     --actions_per_chunk=50 \ # POLICY: the number of actions to output at once
     --chunk_size_threshold=0.5 \ # CLIENT: the threshold for the chunk size before sending a new observation to the server
     --aggregate_fn_name=weighted_average \ # CLIENT: the function to aggregate actions on overlapping portions
     --debug_visualize_queue_size=True # CLIENT: whether to visualize the queue size at runtime
+````
+
+### 服务器
+开启服务端口
+````
+python src/lerobot/scripts/server/policy_server.py \
+     --host=0.0.0.0 \
+     --port=8080 \
+     --fps=30 \
+     --inference_latency=0.033 \
+     --obs_queue_timeout=1
 ````
