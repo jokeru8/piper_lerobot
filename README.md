@@ -66,7 +66,7 @@ echo $HF_USER
 
 上传数据集到huggingface
 ````
-hf upload jokeru/record2 ~/.cache/huggingface/lerobot/jokeru/record2 \
+hf upload jokeru/pick_and_place ~/.cache/huggingface/lerobot/jokeru/pick_and_place \
   --repo-type dataset \
   --revision "v3.0" 
 ````
