@@ -227,6 +227,7 @@ lerobot-record \
   --display_data=true \
   --dataset.repo_id=jokeru/eval_act_pick_and_place \
   --dataset.num_episodes=3 \
+  --dataset.episode_time_s=120 \
   --dataset.single_task="Pick up it and put it into the basket." \
   --policy.path=jokeru/act_pick_and_place
 ````
