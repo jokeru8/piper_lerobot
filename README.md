@@ -31,9 +31,11 @@ guvcview --device=/dev/video0  # 测试ground相机
 ````
 conda activate lerobot
 bash find_all_can_port.sh
-bash can_activate.sh can_master 1000000 "3-7.1:1.0"
-bash can_activate.sh can_follower 1000000 "3-7.2:1.0"
+bash can_activate.sh can_master 1000000 "3-7.3.1:1.0"
+bash can_activate.sh can_follower 1000000 "3-7.3.2:1.0"
 ````
+
+
 
 ## 4.遥操作
 
@@ -211,7 +213,7 @@ lerobot-record \
       "width": 480,
       "height": 640,
       "fps": 30,
-      "rotation": 90,
+      "rotation": 90
     },
     "ground": {
       "type": "opencv",
@@ -219,14 +221,14 @@ lerobot-record \
       "width": 480,
       "height": 640,
       "fps": 30,
-      "rotation": -90,
+      "rotation": -90
     }
   }' \
   --display_data=true \
-  --dataset.repo_id=jokeru/eval_act_pick_apple \
-  --dataset.num_episodes=2 \
-  --dataset.single_task="Pick up the apple and put it into the basket." \
-  --policy.path=jokeru/act_pick_apple
+  --dataset.repo_id=jokeru/eval_act_pick_and_place \
+  --dataset.num_episodes=3 \
+  --dataset.single_task="Pick up it and put it into the basket." \
+  --policy.path=jokeru/act_pick_and_place
 ````
 
 
