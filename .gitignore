@@ -16,7 +16,7 @@
 token.txt
 CMD.md
 outputs
-visual_encoder/
+visual_encoder
 
 ### Environments & Dependencies ###
 .env
