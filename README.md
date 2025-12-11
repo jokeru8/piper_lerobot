@@ -27,8 +27,8 @@ pip install piper_sdk
 
 ````
 sudo apt install guvcview    #安装Guvcview
-guvcview --device=/dev/video6  # 测试wrist相机
-guvcview --device=/dev/video0  # 测试ground相机
+guvcview --device=/dev/video0  # 测试wrist相机
+guvcview --device=/dev/video2  # 测试ground相机
 ````
 
 ## 3.连接机械臂
@@ -239,7 +239,6 @@ lerobot-record \
   --dataset.single_task="Pick up it and put it into the basket." \
   --policy.path=jokeru/act_pick_and_place
 ````
-
 
 ## 10.openpi
 ### 环境安装
