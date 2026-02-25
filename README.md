@@ -252,7 +252,7 @@ pip install -e ".[pi]"
 
 ````
 python src/lerobot/scripts/lerobot_train.py\
-    --dataset.repo_id=jokeru/record2 \
+    --dataset.repo_id=jokeru/pick_and_place \
     --policy.type=pi05 \
     --output_dir=./outputs/pi05_training \
     --job_name=pi05_training \
