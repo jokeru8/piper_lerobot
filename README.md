@@ -23,12 +23,13 @@ pip install piper_sdk
 
 ## 2.测试相机
 
-注意两个相机不能从同一个扩展坞连接电脑,否则可能读取会出问题
+注意三个相机不要都从同一个扩展坞连接电脑,否则可能读取会出问题。设备名对应 udev 别名：`/dev/video_top`、`/dev/video_wrist`、`/dev/video_down`。
 
 ````
 sudo apt install guvcview    #安装Guvcview
-guvcview --device=/dev/video0  # 测试wrist相机
-guvcview --device=/dev/video2  # 测试ground相机
+guvcview --device=/dev/video_top    # 测试 top 相机
+guvcview --device=/dev/video_wrist  # 测试 wrist 相机
+guvcview --device=/dev/video_down   # 测试 down 相机
 ````
 
 ## 3.连接机械臂
@@ -84,27 +85,35 @@ hf upload jokeru/pick_and_place ~/.cache/huggingface/lerobot/jokeru/pick_and_pla
 
 ## 6.采集数据集
 
-/dev/video0等参数改为自己对应的端口
+相机设备使用 udev 稳定别名：`/dev/video_top`、`/dev/video_wrist`、`/dev/video_down`。示例分辨率与旋转：**top** 480×640、`rotation` 90；**wrist** / **down** 640×480、`rotation` 0（可按实际画面修改）。
 
 ````
 lerobot-record \
   --robot.type=piper_follower \
   --robot.cameras='{
-    "wrist": {
+    "top": {
       "type": "opencv",
-      "index_or_path": "/dev/video0",
+      "index_or_path": "/dev/video_top",
       "width": 480,
       "height": 640,
       "fps": 30,
-      "rotation": 0,
+      "rotation": 90
     },
-    "ground": {
+    "wrist": {
       "type": "opencv",
-      "index_or_path": "/dev/video2",
+      "index_or_path": "/dev/video_wrist",
       "width": 640,
       "height": 480,
       "fps": 30,
-      "rotation": 0,
+      "rotation": 0
+    },
+    "down": {
+      "type": "opencv",
+      "index_or_path": "/dev/video_down",
+      "width": 640,
+      "height": 480,
+      "fps": 30,
+      "rotation": 0
     }
   }' \
   --teleop.type=piper_leader \
@@ -214,21 +223,29 @@ lerobot-eval \
 lerobot-record \
   --robot.type=piper_follower \
   --robot.cameras='{
-    "wrist": {
+    "top": {
       "type": "opencv",
-      "index_or_path": "/dev/video0",
-      "width": 480,
-      "height": 640,
-      "fps": 30,
-      "rotation": -90
-    },
-    "ground": {
-      "type": "opencv",
-      "index_or_path": "/dev/video2",
+      "index_or_path": "/dev/video_top",
       "width": 480,
       "height": 640,
       "fps": 30,
       "rotation": 90
+    },
+    "wrist": {
+      "type": "opencv",
+      "index_or_path": "/dev/video_wrist",
+      "width": 640,
+      "height": 480,
+      "fps": 30,
+      "rotation": 0
+    },
+    "down": {
+      "type": "opencv",
+      "index_or_path": "/dev/video_down",
+      "width": 640,
+      "height": 480,
+      "fps": 30,
+      "rotation": 0
     }
   }' \
   --display_data=true \
@@ -305,21 +322,29 @@ python examples/rtc/eval_with_real_robot.py \
   --policy.path=lerobot/pi05_base \
   --robot.type=piper_follower \
   --robot.cameras='{
-    "wrist": {
+    "top": {
       "type": "opencv",
-      "index_or_path": "/dev/video0",
-      "width": 480,
-      "height": 640,
-      "fps": 30,
-      "rotation": -90
-    },
-    "ground": {
-      "type": "opencv",
-      "index_or_path": "/dev/video2",
+      "index_or_path": "/dev/video_top",
       "width": 480,
       "height": 640,
       "fps": 30,
       "rotation": 90
+    },
+    "wrist": {
+      "type": "opencv",
+      "index_or_path": "/dev/video_wrist",
+      "width": 640,
+      "height": 480,
+      "fps": 30,
+      "rotation": 0
+    },
+    "down": {
+      "type": "opencv",
+      "index_or_path": "/dev/video_down",
+      "width": 640,
+      "height": 480,
+      "fps": 30,
+      "rotation": 0
     }
   }' \
   --task="Pick up it and put it into the basket." \
@@ -338,21 +363,29 @@ python examples/rtc/eval_with_real_robot.py \
   --policy.path=jokeru/pi05_pick_and_place \
   --robot.type=piper_follower \
   --robot.cameras='{
-    "wrist": {
+    "top": {
       "type": "opencv",
-      "index_or_path": "/dev/video0",
-      "width": 480,
-      "height": 640,
-      "fps": 30,
-      "rotation": -90
-    },
-    "ground": {
-      "type": "opencv",
-      "index_or_path": "/dev/video2",
+      "index_or_path": "/dev/video_top",
       "width": 480,
       "height": 640,
       "fps": 30,
       "rotation": 90
+    },
+    "wrist": {
+      "type": "opencv",
+      "index_or_path": "/dev/video_wrist",
+      "width": 640,
+      "height": 480,
+      "fps": 30,
+      "rotation": 0
+    },
+    "down": {
+      "type": "opencv",
+      "index_or_path": "/dev/video_down",
+      "width": 640,
+      "height": 480,
+      "fps": 30,
+      "rotation": 0
     }
   }' \
   --task="Pick up it and put it into the basket." \
@@ -398,7 +431,11 @@ nc -zv 127.0.0.1 8080
 python -m src.lerobot.async_inference.robot_client \
     --server_address=127.0.0.1:8080 \
     --robot.type=piper_follower \
-    --robot.cameras='{"wrist": {"type": "opencv", "index_or_path": "/dev/video6", "width": 480, "height": 640, "fps": 30, "rotation": 90}, "ground": {"type": "opencv", "index_or_path": "/dev/video0", "width": 480, "height": 640, "fps": 30, "rotation": -90}}' \
+    --robot.cameras='{
+    "top": {"type": "opencv", "index_or_path": "/dev/video_top", "width": 480, "height": 640, "fps": 30, "rotation": 90},
+    "wrist": {"type": "opencv", "index_or_path": "/dev/video_wrist", "width": 640, "height": 480, "fps": 30, "rotation": 0},
+    "down": {"type": "opencv", "index_or_path": "/dev/video_down", "width": 640, "height": 480, "fps": 30, "rotation": 0}
+  }' \
     --task="Pick up the apple and put it into the basket." \
     --policy_type=pi05 \
     --pretrained_name_or_path=jokeru/pi05_apple \
