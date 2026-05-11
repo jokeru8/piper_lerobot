@@ -1,8 +1,21 @@
 import time
 from dataclasses import dataclass
-from typing import Dict
+from typing import Any
 
 from piper_sdk import C_PiperInterface_V2
+
+# SDK joint fields are 0.001° integers; same scale as `joint_factor` on PiperMotorsBus (rad ↔ SDK units).
+PIPER_SDK_JOINT_UNITS_TO_RAD = 57324.840764
+
+
+def action_pos_dict_from_piper_read(raw: dict[str, Any]) -> dict[str, float]:
+    """Convert `PiperMotorsBus.read()` output to LeRobot `joint_i.pos` (rad) and `gripper.pos` (m stroke)."""
+    out: dict[str, float] = {}
+    for i in range(1, 7):
+        key = f"joint_{i}"
+        out[f"{key}.pos"] = float(raw[key]) / PIPER_SDK_JOINT_UNITS_TO_RAD
+    out["gripper.pos"] = float(raw["gripper"]) / 1_000_000
+    return out
 
 
 @dataclass
@@ -131,7 +144,7 @@ class PiperMotorsBus:
         self.piper.JointCtrl(joint_0, joint_1, joint_2, joint_3, joint_4, joint_5)
         self.piper.GripperCtrl(abs(gripper_range), 1000, 0x01, 0) # 单位 0.001°
 
-    def read(self) -> Dict:
+    def read(self) -> dict[str, Any]:
         """
             - 机械臂关节消息,单位0.001度
             - 机械臂夹爪消息
@@ -152,6 +165,9 @@ class PiperMotorsBus:
             "gripper": gripper_state.grippers_angle
         }
 
+    def read_action_positions(self) -> dict[str, float]:
+        """Joint positions and gripper stroke in the same units as `write()` (rad / m)."""
+        return action_pos_dict_from_piper_read(self.read())
 
     def safe_disconnect(self):
         """ 

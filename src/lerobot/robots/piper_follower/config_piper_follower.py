@@ -52,3 +52,8 @@ class PIPERFollowerConfig(RobotConfig):
             ),
         }
     )
+    # EMA on teleop targets before JointCtrl: smaller = smoother, more lag. 1.0 = off.
+    teleop_joint_alpha: float = 0.25
+    teleop_gripper_alpha: float = 0.5
+    # If True, lerobot-record stores `action` from follower encoders after send_action (scheme B).
+    record_action_from_follower: bool = True

@@ -39,8 +39,8 @@ guvcview --device=/dev/video_down   # 测试 down 相机
 ````
 conda activate lerobot
 bash find_all_can_port.sh
-bash can_activate.sh can_master 1000000 "1-8.2:1.0"
-bash can_activate.sh can_follower 1000000 "1-8.3:1.0"
+bash can_activate.sh can_master 1000000 "1-8.1:1.0"
+bash can_activate.sh can_follower 1000000 "1-8.4.2:1.0"
 ````
 
 

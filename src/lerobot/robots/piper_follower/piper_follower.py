@@ -7,7 +7,7 @@ from typing import Any
 
 from lerobot.cameras.utils import make_cameras_from_configs
 from lerobot.utils.errors import DeviceAlreadyConnectedError, DeviceNotConnectedError
-from lerobot.motors.piper.piper import PiperMotorsBus, PiperMotorsBusConfig
+from lerobot.motors.piper.piper import PiperMotorsBus, PiperMotorsBusConfig, action_pos_dict_from_piper_read
 
 from ..robot import Robot
 from .config_piper_follower import PIPERFollowerConfig
@@ -42,6 +42,7 @@ class PIPERFollower(Robot):
         self._is_connected = False
         self._is_calibrated = False
         self.cameras = make_cameras_from_configs(config.cameras)
+        self._ema_cmd: list[float] | None = None
 
     @property
     def camera_features(self) -> dict:
@@ -149,6 +150,7 @@ class PIPERFollower(Robot):
                 cam.disconnect()
 
         self._is_connected = False
+        self._ema_cmd = None
 
     def calibrate(self):
         """move piper to the home position"""
@@ -157,15 +159,14 @@ class PIPERFollower(Robot):
 
         self.bus.apply_calibration()
         self._is_calibrated = True  # 标记为已标定
+        self._ema_cmd = None
 
     def get_observation(self) -> dict:
         """Capture current joint positions and camera images"""
         if not self._is_connected:
             raise DeviceNotConnectedError("Piper is not connected. Run `robot.connect()` first.")
 
-        # 读取关节状态
-        state = self.bus.read()  # e.g., {'joint_1': 0.1, ..., 'gripper': 0.0}
-        obs_dict = {f"{joint}.pos": float(val) for joint, val in state.items()}
+        obs_dict = action_pos_dict_from_piper_read(self.bus.read())
 
         # 读取图像
         for name, cam in self.cameras.items():
@@ -180,7 +181,29 @@ class PIPERFollower(Robot):
             raise DeviceNotConnectedError("Piper is not connected.")
 
         motor_order = ["joint_1", "joint_2", "joint_3", "joint_4", "joint_5", "joint_6", "gripper"]
-        target_joints = [action[f"{motor}.pos"] for motor in motor_order]
+        target_joints = [float(action[f"{motor}.pos"]) for motor in motor_order]
 
-        self.bus.write(target_joints)
-        return action
+        ja = min(1.0, max(0.0, float(self.config.teleop_joint_alpha)))
+        ga = min(1.0, max(0.0, float(self.config.teleop_gripper_alpha)))
+        if ja <= 0.0:
+            ja = 1.0
+        if ga <= 0.0:
+            ga = 1.0
+
+        if ja >= 1.0 - 1e-9 and ga >= 1.0 - 1e-9:
+            cmd = list(target_joints)
+        else:
+            if self._ema_cmd is None:
+                init = self.bus.read_action_positions()
+                self._ema_cmd = [float(init[f"{m}.pos"]) for m in motor_order]
+            for i in range(6):
+                self._ema_cmd[i] = ja * target_joints[i] + (1.0 - ja) * self._ema_cmd[i]
+            self._ema_cmd[6] = ga * target_joints[6] + (1.0 - ga) * self._ema_cmd[6]
+            cmd = self._ema_cmd
+
+        self.bus.write(cmd)
+        return {f"{motor_order[i]}.pos": cmd[i] for i in range(len(motor_order))}
+
+    def get_record_action_from_follower(self) -> dict[str, float]:
+        """Follower joint/gripper positions in rad (and gripper m) for dataset `action` (scheme B)."""
+        return self.bus.read_action_positions()

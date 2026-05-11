@@ -356,14 +356,20 @@ def record_loop(
         # TODO(steven, pepijn, adil): we should use a pipeline step to clip the action, so the sent action is the action that we input to the robot.
         _sent_action = robot.send_action(robot_action_to_send)
 
+        action_for_dataset = action_values
+        if policy is None and getattr(robot.config, "record_action_from_follower", False):
+            record_action_fn = getattr(robot, "get_record_action_from_follower", None)
+            if callable(record_action_fn):
+                action_for_dataset = record_action_fn()
+
         # Write to dataset
         if dataset is not None:
-            action_frame = build_dataset_frame(dataset.features, action_values, prefix=ACTION)
+            action_frame = build_dataset_frame(dataset.features, action_for_dataset, prefix=ACTION)
             frame = {**observation_frame, **action_frame, "task": single_task}
             dataset.add_frame(frame)
 
         if display_data:
-            log_rerun_data(observation=obs_processed, action=action_values)
+            log_rerun_data(observation=obs_processed, action=action_for_dataset)
 
         dt_s = time.perf_counter() - start_loop_t
         busy_wait(1 / fps - dt_s)

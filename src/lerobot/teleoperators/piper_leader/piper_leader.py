@@ -4,7 +4,7 @@ import logging
 import time
 
 from lerobot.utils.errors import DeviceAlreadyConnectedError, DeviceNotConnectedError
-from lerobot.motors.piper.piper import PiperMotorsBus, PiperMotorsBusConfig
+from lerobot.motors.piper.piper import PiperMotorsBus, PiperMotorsBusConfig, action_pos_dict_from_piper_read
 
 from ..teleoperator import Teleoperator
 from .config_piper_leader import PIPERLeaderConfig
@@ -88,12 +88,7 @@ class PIPERLeader(Teleoperator):
     def get_action(self) -> dict[str, float]:
         """获取主臂当前动作（单位转为 rad）"""
         start = time.perf_counter()
-        action_raw = self.bus.read()  # 原始单位 0.001°
-        joint_factor = 57324.840764  # 度转弧度比例因子（可调）
-        action = {
-            f"{motor}.pos": val / joint_factor if motor != "gripper" else val / 1_000_000
-            for motor, val in action_raw.items()
-        }
+        action = action_pos_dict_from_piper_read(self.bus.read())
         dt_ms = (time.perf_counter() - start) * 1e3
         logger.debug(f"{self} read action: {dt_ms:.1f}ms")
         return action
