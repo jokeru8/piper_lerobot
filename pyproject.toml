@@ -17,10 +17,10 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project.urls]
-homepage = "https://huggingface.co/lerobot"
+homepage = "https://github.com/jokeru8/piper_lerobot"
 documentation = "https://huggingface.co/docs/lerobot/index"
-source = "https://github.com/huggingface/lerobot"
-issues = "https://github.com/huggingface/lerobot/issues"
+source = "https://github.com/jokeru8/piper_lerobot"
+issues = "https://github.com/jokeru8/piper_lerobot/issues"
 discord = "https://discord.gg/s3KuuzsPFb"
 
 [project]
@@ -108,6 +108,7 @@ gamepad = ["lerobot[pygame-dep]", "hidapi>=0.14.0,<0.15.0"]
 hopejr = ["lerobot[feetech]", "lerobot[pygame-dep]"]
 lekiwi = ["lerobot[feetech]", "pyzmq>=26.2.1,<28.0.0"]
 reachy2 = ["reachy2_sdk>=1.0.14,<1.1.0"]
+piper = ["piper-sdk>=0.2.19,<0.7.0", "python-can>=4.3.1,<5.0.0"]
 kinematics = ["lerobot[placo-dep]"]
 intelrealsense = [
     "pyrealsense2>=2.55.1.6486,<2.57.0 ; sys_platform != 'darwin'",
@@ -152,6 +153,7 @@ all = [
     "lerobot[hopejr]",
     "lerobot[lekiwi]",
     "lerobot[reachy2]",
+    "lerobot[piper]",
     "lerobot[kinematics]",
     "lerobot[intelrealsense]",
     "lerobot[pi]",

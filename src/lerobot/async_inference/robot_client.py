@@ -54,9 +54,9 @@ from lerobot.robots import (  # noqa: F401
     bi_so100_follower,
     koch_follower,
     make_robot_from_config,
+    piper_follower,
     so100_follower,
     so101_follower,
-    piper_follower,
 )
 from lerobot.transport import (
     services_pb2,  # type: ignore
@@ -94,6 +94,10 @@ class RobotClient:
         self.config = config
         self.robot = make_robot_from_config(config.robot)
         self.robot.connect()
+        buffer_factory = getattr(self.robot, "make_async_action_buffer", None)
+        self.deployment_action_buffer = buffer_factory() if callable(buffer_factory) else None
+        self._deployment_buffer_initialized = False
+        self._bootstrap_observation_sent = False
 
         lerobot_features = map_robot_keys_to_lerobot_features(self.robot)
 
@@ -173,12 +177,18 @@ class RobotClient:
     def stop(self):
         """Stop the robot client"""
         self.shutdown_event.set()
-
-        self.robot.disconnect()
-        self.logger.debug("Robot disconnected")
-
-        self.channel.close()
-        self.logger.debug("Client stopped, channel closed")
+        disconnect_error: Exception | None = None
+        try:
+            self.robot.disconnect()
+            self.logger.debug("Robot disconnected")
+        except Exception as exc:
+            disconnect_error = exc
+            self.logger.exception("Robot disconnect failed")
+        finally:
+            self.channel.close()
+            self.logger.debug("Client channel closed")
+        if disconnect_error is not None:
+            raise disconnect_error
 
     def send_observation(
         self,
@@ -215,6 +225,13 @@ class RobotClient:
             return False
 
     def _inspect_action_queue(self):
+        if self.deployment_action_buffer is not None:
+            queue_size = self.deployment_action_buffer.remaining
+            with self.latest_action_lock:
+                latest_action = self.latest_action
+            timestamps = list(range(latest_action + 1, latest_action + queue_size + 1))
+            self.logger.debug(f"Deployment buffer size: {queue_size}")
+            return queue_size, timestamps
         with self.action_queue_lock:
             queue_size = self.action_queue.qsize()
             timestamps = sorted([action.get_timestep() for action in self.action_queue.queue])
@@ -226,7 +243,18 @@ class RobotClient:
         incoming_actions: list[TimedAction],
         aggregate_fn: Callable[[torch.Tensor, torch.Tensor], torch.Tensor] | None = None,
     ):
-        """Finds the same timestep actions in the queue and aggregates them using the aggregate_fn"""
+        """Merge a received chunk into the standard queue or Marvin deployment buffer."""
+        if self.deployment_action_buffer is not None:
+            if not incoming_actions:
+                return
+            values = torch.stack([action.get_action() for action in incoming_actions]).detach().cpu().numpy()
+            if not self._deployment_buffer_initialized:
+                self.deployment_action_buffer.integrate_first_chunk(values)
+                self._deployment_buffer_initialized = True
+            else:
+                self.deployment_action_buffer.integrate_new_chunk(values)
+            return
+
         if aggregate_fn is None:
             # default aggregate function: take the latest action
             def aggregate_fn(x1, x2):
@@ -266,6 +294,28 @@ class RobotClient:
         with self.action_queue_lock:
             self.action_queue = future_action_queue
 
+    def _prepare_incoming_action_chunk(self, timed_actions: list[TimedAction]) -> list[TimedAction]:
+        """Allow a robot deployment layer to retime/interpolate a complete chunk."""
+
+        prepare = getattr(self.robot, "prepare_policy_action_chunk", None)
+        if not callable(prepare) or not timed_actions:
+            return timed_actions
+        action_tensor = torch.stack([action.get_action() for action in timed_actions])
+        processed = prepare(action_tensor)
+        if not isinstance(processed, torch.Tensor):
+            processed = torch.as_tensor(processed, dtype=action_tensor.dtype)
+        if processed.ndim != 2 or processed.shape[0] < 1:
+            raise ValueError(f"prepared action chunk must have shape (T, A), got {processed.shape}")
+        first = timed_actions[0]
+        return [
+            TimedAction(
+                timestamp=first.get_timestamp() + index * self.config.environment_dt,
+                timestep=first.get_timestep() + index,
+                action=action,
+            )
+            for index, action in enumerate(processed)
+        ]
+
     def receive_actions(self, verbose: bool = False):
         """Receive actions from the policy server"""
         # Wait at barrier for synchronized start
@@ -286,6 +336,7 @@ class RobotClient:
                 timed_actions = pickle.loads(actions_chunk.data)  # nosec
                 deserialize_time = time.perf_counter() - deserialize_start
 
+                timed_actions = self._prepare_incoming_action_chunk(timed_actions)
                 self.action_chunk_size = max(self.action_chunk_size, len(timed_actions))
 
                 # Calculate network latency if we have matching observations
@@ -321,18 +372,19 @@ class RobotClient:
 
                 self.must_go.set()  # after receiving actions, next empty queue triggers must-go processing!
 
-                if verbose:
+                if verbose and timed_actions:
                     # Get queue state after changes
                     new_size, new_timesteps = self._inspect_action_queue()
 
                     with self.latest_action_lock:
                         latest_action = self.latest_action
 
+                    new_range = f"{new_timesteps[0]}:{new_timesteps[-1]}" if new_timesteps else "empty"
                     self.logger.info(
                         f"Latest action: {latest_action} | "
                         f"Old action steps: {old_timesteps[0]}:{old_timesteps[-1]} | "
                         f"Incoming action steps: {incoming_timesteps[0]}:{incoming_timesteps[-1]} | "
-                        f"Updated action steps: {new_timesteps[0]}:{new_timesteps[-1]}"
+                        f"Updated action steps: {new_range}"
                     )
                     self.logger.debug(
                         f"Queue update complete ({queue_update_time:.6f}s) | "
@@ -345,39 +397,56 @@ class RobotClient:
 
     def actions_available(self):
         """Check if there are actions available in the queue"""
+        if self.deployment_action_buffer is not None:
+            return self.deployment_action_buffer.remaining > 0
         with self.action_queue_lock:
             return not self.action_queue.empty()
 
     def _action_tensor_to_action_dict(self, action_tensor: torch.Tensor) -> dict[str, float]:
+        mapper = getattr(self.robot, "policy_action_to_dict", None)
+        if callable(mapper):
+            return mapper(action_tensor)
         action = {key: action_tensor[i].item() for i, key in enumerate(self.robot.action_features)}
         return action
 
     def control_loop_action(self, verbose: bool = False) -> dict[str, Any]:
         """Reading and performing actions in local queue"""
 
-        # Lock only for queue operations
         get_start = time.perf_counter()
-        with self.action_queue_lock:
-            self.action_queue_size.append(self.action_queue.qsize())
-            # Get action from queue
-            timed_action = self.action_queue.get_nowait()
+        if self.deployment_action_buffer is not None:
+            self.action_queue_size.append(self.deployment_action_buffer.remaining)
+            action_array = self.deployment_action_buffer.get_next_action()
+            if action_array is None:
+                raise RuntimeError("deployment action buffer became empty while popping")
+            action_tensor = torch.as_tensor(action_array)
+            with self.latest_action_lock:
+                action_timestep = self.latest_action + 1
+        else:
+            # Lock only for queue operations
+            with self.action_queue_lock:
+                self.action_queue_size.append(self.action_queue.qsize())
+                timed_action = self.action_queue.get_nowait()
+            action_tensor = timed_action.get_action()
+            action_timestep = timed_action.get_timestep()
         get_end = time.perf_counter() - get_start
 
-        _performed_action = self.robot.send_action(
-            self._action_tensor_to_action_dict(timed_action.get_action())
-        )
+        action_dict = self._action_tensor_to_action_dict(action_tensor)
+        send_policy_action = getattr(self.robot, "send_policy_action", None)
+        if callable(send_policy_action):
+            _performed_action = send_policy_action(action_dict)
+        else:
+            _performed_action = self.robot.send_action(action_dict)
         with self.latest_action_lock:
-            self.latest_action = timed_action.get_timestep()
+            self.latest_action = action_timestep
 
         if verbose:
-            with self.action_queue_lock:
-                current_queue_size = self.action_queue.qsize()
+            if self.deployment_action_buffer is not None:
+                current_queue_size = self.deployment_action_buffer.remaining
+            else:
+                with self.action_queue_lock:
+                    current_queue_size = self.action_queue.qsize()
 
-            self.logger.debug(
-                f"Ts={timed_action.get_timestamp()} | "
-                f"Action #{timed_action.get_timestep()} performed | "
-                f"Queue size: {current_queue_size}"
-            )
+            self.logger.debug(f"Action #{action_timestep} performed | Queue size: {current_queue_size}")
 
             self.logger.debug(
                 f"Popping action from queue to perform took {get_end:.6f}s | Queue size: {current_queue_size}"
@@ -387,6 +456,10 @@ class RobotClient:
 
     def _ready_to_send_observation(self):
         """Flags when the client is ready to send an observation"""
+        if self.deployment_action_buffer is not None:
+            if not self._deployment_buffer_initialized:
+                return not self._bootstrap_observation_sent
+            return self.deployment_action_buffer.mark_launch_if_ready()
         with self.action_queue_lock:
             return self.action_queue.qsize() / self.action_chunk_size <= self._chunk_size_threshold
 
@@ -410,11 +483,17 @@ class RobotClient:
             obs_capture_time = time.perf_counter() - start_time
 
             # If there are no actions left in the queue, the observation must go through processing!
-            with self.action_queue_lock:
-                observation.must_go = self.must_go.is_set() and self.action_queue.empty()
-                current_queue_size = self.action_queue.qsize()
+            if self.deployment_action_buffer is not None:
+                current_queue_size = self.deployment_action_buffer.remaining
+                observation.must_go = self.must_go.is_set() and current_queue_size == 0
+            else:
+                with self.action_queue_lock:
+                    observation.must_go = self.must_go.is_set() and self.action_queue.empty()
+                    current_queue_size = self.action_queue.qsize()
 
-            _ = self.send_observation(observation)
+            sent = self.send_observation(observation)
+            if sent and self.deployment_action_buffer is not None and not self._deployment_buffer_initialized:
+                self._bootstrap_observation_sent = True
 
             self.logger.debug(f"QUEUE SIZE: {current_queue_size} (Must go: {observation.must_go})")
             if observation.must_go:
@@ -474,26 +553,56 @@ def async_client(cfg: RobotClientConfig):
         raise ValueError(f"Robot {cfg.robot.type} not yet supported!")
 
     client = RobotClient(cfg)
+    stop_watcher = None
 
-    if client.start():
-        client.logger.info("Starting action receiver thread...")
+    def request_stop(mode: str) -> None:
+        set_stop_at = getattr(client.robot, "set_stop_at", None)
+        halt = getattr(client.robot, "halt_policy_actions", None)
+        if callable(set_stop_at):
+            set_stop_at(mode)
+        if callable(halt):
+            halt()
+        client.shutdown_event.set()
 
-        # Create and start action receiver thread
-        action_receiver_thread = threading.Thread(target=client.receive_actions, daemon=True)
+    if not client.start():
+        set_stop_at = getattr(client.robot, "set_stop_at", None)
+        if callable(set_stop_at):
+            set_stop_at("hold")
+        client.stop()
+        return
 
-        # Start action receiver thread
-        action_receiver_thread.start()
+    client.logger.info("Starting action receiver thread...")
+    action_receiver_thread = threading.Thread(target=client.receive_actions, daemon=True)
+    action_receiver_thread.start()
 
+    # Piper exposes Marvin-style s=hold / h=smooth-home hotkeys. Importing
+    # this lazily keeps the generic async client independent of Piper.
+    if callable(getattr(client.robot, "set_stop_at", None)):
+        from lerobot.robots.piper_follower.keyboard_stop import KeyboardStopWatcher
+
+        stop_watcher = KeyboardStopWatcher(request_stop)
+        stop_watcher.start()
+
+    try:
+        client.control_loop(task=cfg.task)
+    except KeyboardInterrupt:
+        request_stop("hold")
+    finally:
+        if stop_watcher is not None:
+            stop_watcher.stop()
+        stop_error: Exception | None = None
         try:
-            # The main thread runs the control loop
-            client.control_loop(task=cfg.task)
-
-        finally:
             client.stop()
-            action_receiver_thread.join()
-            if cfg.debug_visualize_queue_size:
-                visualize_action_queue_size(client.action_queue_size)
-            client.logger.info("Client stopped")
+        except Exception as exc:
+            stop_error = exc
+        action_receiver_thread.join(timeout=5.0)
+        if action_receiver_thread.is_alive():
+            client.logger.warning("Action receiver thread did not stop within 5 seconds")
+        if cfg.debug_visualize_queue_size and client.action_queue_size:
+            visualize_action_queue_size(client.action_queue_size)
+        client.logger.info("Client stopped")
+        if stop_error is not None:
+            raise stop_error
 
 
 if __name__ == "__main__":

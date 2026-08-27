@@ -95,9 +95,9 @@ from lerobot.robots import (  # noqa: F401
     Robot,
     RobotConfig,
     koch_follower,
+    piper_follower,
     so100_follower,
     so101_follower,
-    piper_follower,
 )
 from lerobot.robots.utils import make_robot_from_config
 from lerobot.utils.constants import OBS_IMAGES
@@ -119,7 +119,10 @@ class RobotWrapper:
 
     def send_action(self, action: Tensor):
         with self.lock:
-            self.robot.send_action(action)
+            send_policy_action = getattr(self.robot, "send_policy_action", None)
+            if callable(send_policy_action):
+                return send_policy_action(action)
+            return self.robot.send_action(action)
 
     def observation_features(self) -> list[str]:
         with self.lock:
@@ -128,6 +131,18 @@ class RobotWrapper:
     def action_features(self) -> list[str]:
         with self.lock:
             return self.robot.action_features
+
+    def supports_deployment_stop(self) -> bool:
+        return callable(getattr(self.robot, "set_stop_at", None))
+
+    def request_stop(self, mode: str) -> None:
+        with self.lock:
+            set_stop_at = getattr(self.robot, "set_stop_at", None)
+            halt = getattr(self.robot, "halt_policy_actions", None)
+            if callable(set_stop_at):
+                set_stop_at(mode)
+            if callable(halt):
+                halt()
 
 
 @dataclass
@@ -479,6 +494,17 @@ def demo_cli(cfg: RTCDemoConfig):
     robot = make_robot_from_config(cfg.robot)
     robot.connect()
     robot_wrapper = RobotWrapper(robot)
+    stop_watcher = None
+
+    if robot_wrapper.supports_deployment_stop():
+        from lerobot.robots.piper_follower.keyboard_stop import KeyboardStopWatcher
+
+        def request_stop(mode: str) -> None:
+            robot_wrapper.request_stop(mode)
+            shutdown_event.set()
+
+        stop_watcher = KeyboardStopWatcher(request_stop)
+        stop_watcher.start()
 
     # Create robot observation processor
     robot_observation_processor = make_default_robot_observation_processor()
@@ -525,6 +551,10 @@ def demo_cli(cfg: RTCDemoConfig):
 
     logger.info("Demo duration reached or shutdown requested")
 
+    if signal_handler.counter > 0 and robot_wrapper.supports_deployment_stop():
+        logger.info("Shutdown signal: holding Piper in place before disconnect")
+        robot_wrapper.request_stop("hold")
+
     # Signal shutdown
     shutdown_event.set()
 
@@ -538,6 +568,8 @@ def demo_cli(cfg: RTCDemoConfig):
         actor_thread.join()
 
     # Cleanup robot
+    if stop_watcher is not None:
+        stop_watcher.stop()
     if robot:
         robot.disconnect()
         logger.info("Robot disconnected")

@@ -20,13 +20,13 @@ from lerobot.cameras import CameraConfig
 from lerobot.cameras.opencv import OpenCVCameraConfig
 
 from ..config import RobotConfig
+from .deployment import PiperDeploymentConfig
 
 
 @RobotConfig.register_subclass("piper_follower")
 @dataclass
 class PIPERFollowerConfig(RobotConfig):
-    #cameras: dict[str, CameraConfig] = field(default_factory=dict)
-    # # cameras
+    # cameras: dict[str, CameraConfig] = field(default_factory=dict)
     cameras: dict[str, CameraConfig] = field(
         default_factory=lambda: {
             "top": OpenCVCameraConfig(
@@ -57,3 +57,5 @@ class PIPERFollowerConfig(RobotConfig):
     teleop_gripper_alpha: float = 0.5
     # If True, lerobot-record stores `action` from follower encoders after send_action (scheme B).
     record_action_from_follower: bool = True
+    # Real-robot policy deployment: retime/interpolation/EMA, EEF/IK, gripper and lifecycle.
+    deployment: PiperDeploymentConfig = field(default_factory=PiperDeploymentConfig)

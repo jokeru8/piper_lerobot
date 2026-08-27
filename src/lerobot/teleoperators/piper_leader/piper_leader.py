@@ -3,16 +3,16 @@
 import logging
 import time
 
-from lerobot.utils.errors import DeviceAlreadyConnectedError, DeviceNotConnectedError
 from lerobot.motors.piper.piper import PiperMotorsBus, PiperMotorsBusConfig, action_pos_dict_from_piper_read
+from lerobot.utils.errors import DeviceAlreadyConnectedError, DeviceNotConnectedError
 
 from ..teleoperator import Teleoperator
 from .config_piper_leader import PIPERLeaderConfig
 
 logger = logging.getLogger(__name__)
 
-class PIPERLeader(Teleoperator):
 
+class PIPERLeader(Teleoperator):
     config_class = PIPERLeaderConfig
     name = "piper_leader"
 
@@ -30,7 +30,7 @@ class PIPERLeader(Teleoperator):
                     "joint_5": (5, "agilex_piper"),
                     "joint_6": (6, "agilex_piper"),
                     "gripper": (7, "agilex_piper"),
-                }
+                },
             )
         )
         self.logs = {}
@@ -58,22 +58,31 @@ class PIPERLeader(Teleoperator):
 
     @property
     def is_connected(self) -> bool:
-        return self.bus.is_connected
+        return self._is_connected
 
     @property
     def is_calibrated(self) -> bool:
         return self._is_calibrated
 
-    def connect(self, _is_calibrate: bool = True) -> None:
+    def connect(self, calibrate: bool = True) -> None:
         """连接主臂"""
         if self._is_connected:
             raise DeviceAlreadyConnectedError(f"{self} already connected")
 
-        self.bus.connect(enable=True)
+        if not self.bus.connect(enable=True):
+            raise ConnectionError("Failed to enable Piper leader")
         self._is_connected = True
 
-        if _is_calibrate:
-            self.calibrate()
+        try:
+            if calibrate:
+                self.calibrate()
+        except Exception:
+            self._is_connected = False
+            try:
+                self.bus.connect(enable=False)
+            except Exception:
+                logger.exception("Failed to disable Piper leader during connect rollback")
+            raise
 
         logger.info(f"{self} connected.")
 
@@ -87,6 +96,8 @@ class PIPERLeader(Teleoperator):
 
     def get_action(self) -> dict[str, float]:
         """获取主臂当前动作（单位转为 rad）"""
+        if not self._is_connected:
+            raise DeviceNotConnectedError(f"{self} is not connected.")
         start = time.perf_counter()
         action = action_pos_dict_from_piper_read(self.bus.read())
         dt_ms = (time.perf_counter() - start) * 1e3
@@ -98,5 +109,18 @@ class PIPERLeader(Teleoperator):
         if not self._is_connected:
             raise DeviceNotConnectedError(f"{self} is not connected.")
 
-        self.bus.safe_disconnect()
+        first_error: Exception | None = None
+        try:
+            self.bus.safe_disconnect()
+        except Exception as exc:
+            first_error = exc
+            logger.exception("Failed to move Piper leader to its safe position")
+        try:
+            if not self.bus.connect(enable=False):
+                raise RuntimeError("Piper SDK did not confirm disable")
+        except Exception as exc:
+            first_error = first_error or exc
+            logger.exception("Failed to disable Piper leader")
         self._is_connected = False
+        if first_error is not None:
+            raise first_error
