@@ -450,5 +450,7 @@ docs/piper_real_robot_deployment.md        部署设计与参数说明
 - 是否经过真机验证以及采用的限速/急停措施。
 - action schema 是 7 维 joint 还是 8 维 EEF。
 
-本项目基于 [Hugging Face LeRobot](https://github.com/huggingface/lerobot)，许可证见
-[LICENSE](LICENSE)。
+## License 与致谢
+
+本项目基于 [Hugging Face LeRobot](https://github.com/huggingface/lerobot)，使用
+[Apache License 2.0](LICENSE)开源。上游归属和 Piper 扩展的版权说明见 [NOTICE](NOTICE)。

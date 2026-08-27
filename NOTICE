@@ -1,0 +1,9 @@
+Piper LeRobot
+Copyright 2026 jokeru8
+
+This product is based on Hugging Face LeRobot
+(https://github.com/huggingface/lerobot), Copyright 2024 The Hugging Face
+team and contributors, licensed under the Apache License, Version 2.0.
+
+The Piper robot integration and real-robot deployment extensions are
+maintained by jokeru8 and are licensed under the Apache License, Version 2.0.
